@@ -4,7 +4,7 @@ namespace Temper
 {
     internal class TemperAgent
     {
-        private string targetDirectory;
+        private readonly string targetDirectory;
         private readonly AppDbContext db;
 
         public TemperAgent(string targetDirectory)

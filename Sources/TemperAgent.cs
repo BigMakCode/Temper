@@ -138,7 +138,9 @@ namespace Temper
 
         private int CheckDatabase()
         {
-            var items = db.FileRecords.ToList();
+            var items = db.FileRecords
+                .OrderBy(x => x.FullName.Contains('.'))
+                .ToList();
             foreach (var item in items)
             {
                 int hours = (int)item.WatcherType;
@@ -157,7 +159,7 @@ namespace Temper
             {
                 if (Directory.Exists(item.FullName))
                 {
-                    Directory.Delete(item.FullName);
+                    Directory.Delete(item.FullName, true);
                 }
                 else
                 {

@@ -19,6 +19,7 @@ namespace Temper
 
         internal async Task RunAsync(CancellationToken cancellationToken = default)
         {
+            Console.WriteLine("Starting temper at {0}", targetDirectory);
             Task daily = StartWatcherAsync(targetDirectory, WatcherType.Daily, cancellationToken);
             Task weekly = StartWatcherAsync(targetDirectory, WatcherType.Weekly, cancellationToken);
             Task monthly = StartWatcherAsync(targetDirectory, WatcherType.Monthly, cancellationToken);
@@ -33,8 +34,11 @@ namespace Temper
                 while (true)
                 {
                     Console.WriteLine("Checking files was started at {0}", DateTime.Now);
-                    int count = CheckDatabase();
-                    Console.WriteLine("{0} files was checked at {1}", count, DateTime.Now);
+                    lock(db)
+                    {
+                        int count = CheckDatabase();
+                        Console.WriteLine("{0} files was checked at {1}", count, DateTime.Now);
+                    }
                     await Task.Delay(60_000, cancellationToken);
                 }
             }, cancellationToken);
@@ -43,7 +47,14 @@ namespace Temper
         private async Task StartWatcherAsync(string targetDirectory, WatcherType watcherType, CancellationToken cancellationToken = default)
         {
             string path = Path.Combine(targetDirectory, watcherType.ToString().ToLower());
-            AddUntrackedFiles(path, watcherType);
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
+            lock (db)
+            {
+                AddUntrackedFiles(path, watcherType);
+            }
             if (!Directory.Exists(path))
             {
                 Directory.CreateDirectory(path);
@@ -53,7 +64,6 @@ namespace Temper
             watcher.Renamed += (sender, args) => OnFileCreated(args, watcherType);
             watcher.Changed += (sender, args) => OnFileCreated(args, watcherType);
             watcher.Deleted += (sender, args) => OnFileDeleted(args, watcherType);
-            watcher.Filter = "*";
             watcher.IncludeSubdirectories = true;
             watcher.EnableRaisingEvents = true;
             await Task.Delay(-1, cancellationToken);
@@ -62,8 +72,10 @@ namespace Temper
         private void AddUntrackedFiles(string path, WatcherType watcherType)
         {
             var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+            var directories = Directory.GetDirectories(path, "*", SearchOption.AllDirectories);
+            var items = files.Concat(directories);
             int addedCounter = 0;
-            foreach (var file in files)
+            foreach (var file in items)
             {
                 var found = db.FileRecords.FirstOrDefault(x => x.FullName == file && x.WatcherType == watcherType);
                 if (found == null)
@@ -77,12 +89,18 @@ namespace Temper
 
         private void OnFileCreated(FileSystemEventArgs args, WatcherType watcherType)
         {
-            AddToDatabase(args.FullPath, watcherType);
+            lock(db)
+            {
+                AddToDatabase(args.FullPath, watcherType);
+            }
         }
 
         private void OnFileDeleted(FileSystemEventArgs args, WatcherType watcherType)
         {
-            DeleteFromDatabase(args.FullPath, watcherType);
+            lock(db)
+            {
+                DeleteFromDatabase(args.FullPath, watcherType);
+            }
         }
 
         private void DeleteFromDatabase(string fullName, WatcherType watcherType)

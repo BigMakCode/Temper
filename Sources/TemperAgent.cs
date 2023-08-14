@@ -1,4 +1,5 @@
-﻿using Temper.Database;
+﻿using Microsoft.EntityFrameworkCore.Update.Internal;
+using Temper.Database;
 
 namespace Temper
 {
@@ -29,17 +30,16 @@ namespace Temper
 
         private Task StartRecyclerAsync(CancellationToken cancellationToken)
         {
+            const int sleepTime = 60_000;
             return Task.Run(async () =>
             {
                 while (true)
                 {
                     Console.WriteLine("Checking files was started at {0}", DateTime.Now);
-                    lock(db)
-                    {
-                        int count = CheckDatabase();
-                        Console.WriteLine("{0} files was checked at {1}", count, DateTime.Now);
-                    }
-                    await Task.Delay(60_000, cancellationToken);
+                    int count = CheckDatabase();
+                    DateTime next = DateTime.Now.AddMilliseconds(sleepTime);
+                    Console.WriteLine("{0} files was checked at {1}. Next launch at {2}", count, DateTime.Now, next);
+                    await Task.Delay(sleepTime, cancellationToken);
                 }
             }, cancellationToken);
         }
@@ -89,7 +89,7 @@ namespace Temper
 
         private void OnFileCreated(FileSystemEventArgs args, WatcherType watcherType)
         {
-            lock(db)
+            lock (db)
             {
                 AddToDatabase(args.FullPath, watcherType);
             }
@@ -97,7 +97,7 @@ namespace Temper
 
         private void OnFileDeleted(FileSystemEventArgs args, WatcherType watcherType)
         {
-            lock(db)
+            lock (db)
             {
                 DeleteFromDatabase(args.FullPath, watcherType);
             }
@@ -108,8 +108,11 @@ namespace Temper
             var found = db.FileRecords.FirstOrDefault(x => x.WatcherType == watcherType && x.FullName == fullName);
             if (found != null)
             {
-                db.FileRecords.Remove(found);
-                db.SaveChanges();
+                lock(db)
+                {
+                    db.FileRecords.Remove(found);
+                    db.SaveChanges();
+                }
                 Console.WriteLine("[{0}] Deleted file: {1}", fullName, watcherType);
             }
         }
@@ -138,9 +141,7 @@ namespace Temper
 
         private int CheckDatabase()
         {
-            var items = db.FileRecords
-                .OrderBy(x => x.FullName.Contains('.'))
-                .ToList();
+            var items = GetAllRecords();
             foreach (var item in items)
             {
                 int hours = (int)item.WatcherType;
@@ -150,7 +151,15 @@ namespace Temper
                     DeleteFile(item);
                 }
             }
-            return items.Count;
+            return items.Count();
+        }
+
+        private IEnumerable<FileRecord> GetAllRecords()
+        {
+            lock (db)
+            {
+                return db.FileRecords.ToList();
+            }
         }
 
         private void DeleteFile(FileRecord item)
@@ -160,14 +169,18 @@ namespace Temper
                 if (Directory.Exists(item.FullName))
                 {
                     Directory.Delete(item.FullName, true);
+                    Console.WriteLine($"[{item.WatcherType}] Directory was deleted: {item.FullName}");
+                }
+                else if (File.Exists(item.FullName))
+                {
+                    File.Delete(item.FullName);
+                    Console.WriteLine($"[{item.WatcherType}] File was deleted: {item.FullName}");
                 }
                 else
                 {
-                    File.Delete(item.FullName);
+                    Console.WriteLine("File or directory does not exists: {0}", item.FullName);
+                    DeleteFromDatabase(item.FullName, item.WatcherType);
                 }
-                db.FileRecords.Remove(item);
-                db.SaveChanges();
-                Console.WriteLine($"[{item.WatcherType}] File deleted: {item.FullName}");
             }
             catch (Exception ex)
             {

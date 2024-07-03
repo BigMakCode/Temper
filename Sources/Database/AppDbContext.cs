@@ -13,7 +13,7 @@ namespace Temper.Database
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlite("Data Source=database.sqlite");
+            optionsBuilder.UseSqlite("Data Source=temper-database.sqlite");
         }
     }
 }

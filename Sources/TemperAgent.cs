@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Update.Internal;
-using Temper.Database;
+﻿using Temper.Database;
 
 namespace Temper
 {

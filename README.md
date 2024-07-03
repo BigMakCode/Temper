@@ -1,22 +1,26 @@
-# README
-
-This is the README file for the project.
+# Temper
 
 ## Introduction
 
-Welcome to the project! This document provides an overview of the project and its purpose.
+Keep your temp folders clean and clear.
 
 ## Installation
 
 To get started with the project, follow these steps:
 
 1. Clone the repository.
-2. Install the required dependencies.
-3. Run the project.
+2. Build dotnet application.
+3. Run the application.
 
 ## Usage
 
 When your temp folder looks like this:
+  - temp
+    - daily
+    - weekly
+    - monthly
+
+It will be also removed after specified time elapsed
 
 ## Contributing
 
